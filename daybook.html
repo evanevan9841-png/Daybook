@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Daybook – Offline Accounting with Auto-Sync Database</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nepali-date-converter/dist/nepali-date-converter.umd.js"></script>
+    <style>
+        :root {
+            --bg-body: #f0f4f8;
+            --text-main: #333;
+            --header-grad-1: #001f3f;
+            --header-grad-2: #003366;
+            --surface-card: white;
+            --border-light: #e1e4e8;
+            --th-bg: #f8fafc;
+            --th-text: #003366;
+            --accent-blue: #00509e;
+            --input-bg: transparent;
+            --input-text: #333;
+            --input-focus-bg: #f0f8ff;
+            --row-hover: #e0f2fe;
+            --shadow-subtle: rgba(0, 0, 0, 0.05);
+        }
+
+        body.night-mode {
+            --bg-body: #121212;
+            --text-main: #e0e0e0;
+            --header-grad-1: #0f0f0f;
+            --header-grad-2: #252525;
+            --surface-card: #1e1e1e;
+            --border-light: #333;
+            --th-bg: #2c2c2c;
+            --th-text: #90caf9;
+            --accent-blue: #64b5f6;
+            --input-bg: #2c2c2c;
+            --input-text: #e0e0e0;
+            --input-focus-bg: #333;
+            --row-hover: #2c2c2c;
+            --shadow-subtle: rgba(0, 0, 0, 0.5);
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background: var(--bg-body);
+            color: var(--text-main);
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .logo-header {
+            background: linear-gradient(135deg, var(--header-grad-1), var(--header-grad-2));
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .logo-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo-title {
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .db-status {
+            display: inline-block;
+            margin-left: 20px;
+            padding: 5px 12px;
+            background: rgba(76, 175, 80, 0.8);
+            border-radius: 15px;
+            font-size: 12px;
+            color: white;
+        }
+
+        .tab-container {
+            display: flex;
+            background: linear-gradient(135deg, var(--header-grad-1), var(--header-grad-2));
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 0 20px;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .tab.active {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #00d2ff;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            animation: fadeIn 0.4s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .section-title {
+            font-weight: 700;
+            padding: 10px 15px;
+            margin-top: 25px;
+            background: linear-gradient(90deg, var(--header-grad-2), var(--accent-blue));
+            color: white;
+            border-radius: 6px 6px 0 0;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: var(--surface-card);
+            font-size: 12px;
+            box-shadow: 0 4px 10px var(--shadow-subtle);
+            border-radius: 0 0 6px 6px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border-light);
+            padding: 8px 12px;
+            color: var(--text-main);
+        }
+
+        th {
+            background: var(--th-bg);
+            color: var(--th-text);
+            font-weight: 700;
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 11px;
+            border-bottom: 2px solid var(--accent-blue);
+        }
+
+        td input.cell {
+            width: 100%;
+            border: 1px solid transparent;
+            padding: 6px;
+            font-size: 12px;
+            text-align: right;
+            border-radius: 4px;
+            transition: all 0.2s;
+            background: var(--input-bg);
+            color: var(--input-text);
+        }
+
+        td input.cell:focus {
+            outline: none;
+            border: 1px solid var(--accent-blue);
+            background: var(--input-focus-bg);
+            box-shadow: 0 0 0 3px rgba(0, 80, 158, 0.1);
+        }
+
+        button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--header-grad-2));
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 5px 2px;
+            font-size: 12px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+        }
+
+        .vip-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        .normal-badge {
+            background: #e0e0e0;
+            color: #666;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        .total-row {
+            background: var(--bg-body);
+            font-weight: 700;
+            color: var(--th-text);
+        }
+
+        .sum-total {
+            background: var(--row-hover);
+            font-weight: 800;
+            font-size: 12px;
+            color: var(--th-text);
+            border-top: 2px solid var(--accent-blue);
+        }
+
+        tr:nth-child(even) {
+            background: var(--bg-body);
+        }
+
+        tr:hover {
+            background: var(--row-hover);
+            transition: background 0.15s;
+        }
+
+        @media print {
+            :root {
+                --bg-body: white !important;
+                --text-main: black !important;
+                --header-grad-1: white !important;
+                --header-grad-2: white !important;
+                --surface-card: white !important;
+                --border-light: #000 !important;
+                --th-bg: #ddd !important;
+                --th-text: black !important;
+                --accent-blue: black !important;
+                --input-bg: transparent !important;
+                --input-text: black !important;
+                --input-focus-bg: transparent !important;
+                --row-hover: white !important;
+                --shadow-subtle: none !important;
+            }
+
+            body.night-mode {
+                --bg-body: white !important;
+                --text-main: black !important;
+                --header-grad-1: white !important;
+                --header-grad-2: white !important;
+                --surface-card: white !important;
+                --border-light: #000 !important;
+                --th-bg: #ddd !important;
+                --th-text: black !important;
+                --accent-blue: black !important;
+                --input-bg: transparent !important;
+                --input-text: black !important;
+                --input-focus-bg: transparent !important;
+                --row-hover: white !important;
+                --shadow-subtle: none !important;
+            }
+
+            @page {
+                size: A4 landscape;
+                margin: 5mm;
+            }
+
+            body {
+                margin: 0;
+                background: white !important;
+                color: black !important;
+                font-size: 10px;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .logo-header,
+            .tab-container,
+            button,
+            .mode-toggle,
+            #mode-btn {
+                display: none !important;
+            }
+
+            .tab-content {
+                padding: 0;
+                display: block !important;
+                width: 100%;
+            }
+
+            .section-title {
+                background: #eee !important;
+                color: black !important;
+                border: 1px solid #000 !important;
+                box-shadow: none !important;
+                margin-top: 5px;
+                padding: 2px 5px;
+                font-size: 12px;
+                font-weight: bold;
+                page-break-after: avoid;
+            }
+
+            table {
+                background: white !important;
+                color: black !important;
+                box-shadow: none !important;
+                border: 1px solid black !important;
+                page-break-inside: avoid;
+                width: 100%;
+                font-size: 10px;
+                margin-bottom: 10px;
+            }
+
+            th,
+            td {
+                border: 1px solid black !important;
+                padding: 2px 4px;
+                color: black !important;
+                background: white !important;
+            }
+
+            th {
+                background: #ddd !important;
+                color: black !important;
+                font-size: 10px;
+                border-bottom: 1px solid black !important;
+            }
+
+            td input.cell {
+                font-size: 11px !important;
+                font-weight: 600;
+                padding: 1px;
+                color: black !important;
+                background: transparent !important;
+                border: none !important;
+                height: auto;
+            }
+
+            th:last-child,
+            td:last-child {
+                display: none !important;
+            }
+
+            /* Hide placeholder text in print if empty */
+            input::placeholder {
+                color: transparent !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="logo-header">
+        <div class="logo-container">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%23E89B7E' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M100 60 L100 90 M100 90 Q100 110 85 120 Q70 130 70 150 L70 160 M100 90 Q100 110 115 120 Q130 130 130 150 L130 160 M70 160 Q70 170 85 175 Q100 180 100 180 Q100 180 115 175 Q130 170 130 160 M60 120 Q60 140 70 150 M140 120 Q140 140 130 150 M60 120 Q60 100 70 90 Q80 80 85 80 M140 120 Q140 100 130 90 Q120 80 115 80 M85 80 Q92 75 100 75 Q108 75 115 80'/%3E%3C/g%3E%3C/svg%3E"
+                class="logo" alt="Logo">
+            <div class="logo-title">DAYBOOK</div>
+            <div class="db-status" id="db-status">🗄️ Database Connected</div>
+            <button onclick="toggleNightMode()" id="mode-btn"
+                style="margin-left: 15px; background: rgba(255,255,255,0.2); border-radius: 50%; width: 36px; height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 18px;">🌙</button>
+        </div>
+    </div>
+    <div class="tab-container">
+        <div class="tab active" onclick="showTab('daybook')">Daybook</div>
+        <div class="tab" onclick="showTab('customers')">Customers</div>
+        <div class="tab" onclick="showTab('calculator')">Calculator</div>
+    </div>
+    <div id="daybook" class="tab-content" style="display:block;">
+        <div id="date-bar" style="text-align:center; font-size:12px; font-weight:bold; margin-bottom:4px;"></div>
+        <button onclick="saveToDatabase()">💾 Save (Auto-Sync Customers)</button>
+        <button onclick="loadFromDatabase()">📂 Load from Database</button>
+        <button onclick="viewDatabaseInfo()">ℹ️ Database Info</button>
+        <button onclick="exportToExcel()">📊 Export to Excel</button>
+        <button onclick="printAsPDF()">Export PDF</button>
+        <button onclick="clearDaybook()" style="background: linear-gradient(135deg, #d32f2f, #b71c1c);">🗑️ Clear
+            All</button>
+        <div id="sheet"></div>
+    </div>
+    <div id="customers" class="tab-content">
+        <h2 style="color: #003366;">👥 Customer Relationship Management</h2>
+        <div style="margin-bottom: 15px;">
+            <button onclick="addCustomerRow()">+ Add Customer</button>
+            <button onclick="saveCustomersToDatabase()">💾 Save Customers</button>
+            <button onclick="loadCustomersFromDatabase()">📂 Load Customers</button>
+            <button onclick="exportCustomersToExcel()">📊 Export to Excel</button>
+        </div>
+        <div
+            style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <div><strong>Total Customers:</strong> <span id="total_customers">0</span></div>
+                <div><strong>VIP Customers:</strong> <span id="vip_customers" style="color: #ffd700;">0</span></div>
+                <div><strong>Normal Customers:</strong> <span id="normal_customers">0</span></div>
+            </div>
+        </div>
+        <table id="customer_table">
+            <tr>
+                <th style="width: 50px;">S.N</th>
+                <th style="width: 200px;">NAME</th>
+                <th style="width: 150px;">PHONE NUMBER</th>
+                <th style="width: 250px;">NOTES</th>
+                <th style="width: 100px;">VIP STATUS</th>
+                <th style="width: 60px;">DEL</th>
+            </tr>
+        </table>
+    </div>
+    <div id="calculator" class="tab-content">
+        <h3>Simple Calculator</h3>
+        <button onclick="addCalcRow()">+ Add Row</button>
+        <button onclick="clearCalc()">Clear All</button>
+        <table id="calc_table" style="margin-top:10px;">
+            <tr>
+                <th style="width:50px;">S.N</th>
+                <th>Description</th>
+                <th style="width:150px;">Amount</th>
+                <th style="width:50px;">DEL</th>
+            </tr>
+        </table>
+        <div style="margin-top:10px; font-size:14px; font-weight:bold; text-align:right; padding-right:60px;">
+            TOTAL: <span id="calc_total">0.00</span>
+        </div>
+    </div>
+    <script>
+        let db;
+        const DB_NAME = 'DaybookDatabase';
+        const DB_VERSION = 1;
+
+        function initDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = () => { document.getElementById('db-status').textContent = '❌ Database Error'; reject(request.error); };
+                request.onsuccess = () => { db = request.result; document.getElementById('db-status').textContent = '🗄️ Database Connected'; resolve(db); };
+                request.onupgradeneeded = (e) => {
+                    db = e.target.result;
+                    if (!db.objectStoreNames.contains('daybook')) {
+                        const daybookStore = db.createObjectStore('daybook', { keyPath: 'id', autoIncrement: true });
+                        daybookStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+                    if (!db.objectStoreNames.contains('customers')) {
+                        const customerStore = db.createObjectStore('customers', { keyPath: 'id', autoIncrement: true });
+                        customerStore.createIndex('name', 'name', { unique: false });
+                        customerStore.createIndex('phone', 'phone', { unique: false });
+                    }
+                };
+            });
+        }
+
+        async function saveToDatabase() {
+            try {
+                const inputs = document.querySelectorAll("#sheet input.cell");
+                const data = [];
+                inputs.forEach(i => data.push(i.value));
+
+                const transaction = db.transaction(['daybook', 'customers'], 'readwrite');
+                const daybookStore = transaction.objectStore('daybook');
+                const customerStore = transaction.objectStore('customers');
+
+                await daybookStore.clear();
+                await daybookStore.add({ data: data, timestamp: new Date().toISOString(), version: '1.0' });
+
+                // AUTO-EXTRACT CUSTOMERS
+                const existingCustomers = await customerStore.getAll();
+                const existingMap = new Map();
+
+                existingCustomers.onsuccess = async () => {
+                    existingCustomers.result.forEach(c => existingMap.set(`${c.name}_${c.phone}`, c));
+
+                    const sections = ['tbl_diamond', 'tbl_gold', 'tbl_booking', 'tbl_cash', 'tbl_approval'];
+                    const newCustomers = new Map();
+
+                    sections.forEach(sectionId => {
+                        const table = document.getElementById(sectionId);
+                        if (!table) return;
+                        const rows = table.querySelectorAll('tr');
+                        rows.forEach((row, index) => {
+                            if (index === 0 || row.classList.contains('total-row') || row.classList.contains('sum-total')) return;
+                            const inputs = row.querySelectorAll('input.cell');
+                            if (inputs.length > 0) {
+                                const name = inputs[9].value ? inputs[9].value.trim() : '';
+                                const phone = inputs[10].value ? inputs[10].value.trim() : '';
+                                if (name || phone) {
+                                    const key = `${name}_${phone}`;
+                                    if (!newCustomers.has(key)) newCustomers.set(key, { name, phone });
+                                }
+                            }
+                        });
+                    });
+
+                    let addedCount = 0;
+                    for (const [key, customer] of newCustomers) {
+                        if (!existingMap.has(key)) {
+                            await customerStore.add({ name: customer.name, phone: customer.phone, notes: '', isVip: false, timestamp: new Date().toISOString() });
+                            addedCount++;
+                        }
+                    }
+
+                    let message = '✅ Saved to Database!\n\n📊 Daybook data saved\n';
+                    message += addedCount > 0 ? `👥 ${addedCount} new customer(s) added automatically` : '👥 Customer database up-to-date';
+                    alert(message);
+                };
+            } catch (error) {
+                alert('❌ Error saving: ' + error.message);
+            }
+        }
+
+        async function loadFromDatabase() {
+            try {
+                const transaction = db.transaction(['daybook'], 'readonly');
+                const store = transaction.objectStore('daybook');
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    const records = request.result;
+                    if (records.length === 0) { alert('No data found!'); return; }
+                    const latestRecord = records[records.length - 1];
+                    const inputs = document.querySelectorAll("#sheet input.cell");
+                    inputs.forEach((i, idx) => i.value = latestRecord.data[idx] || "");
+                    calcTotals();
+                    alert(`✅ Loaded!\n\nLast saved: ${new Date(latestRecord.timestamp).toLocaleString()}`);
+                };
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        async function viewDatabaseInfo() {
+            try {
+                const transaction = db.transaction(['daybook', 'customers'], 'readonly');
+                const daybookCount = await transaction.objectStore('daybook').count();
+                const customerCount = await transaction.objectStore('customers').count();
+                daybookCount.onsuccess = () => {
+                    customerCount.onsuccess = () => {
+                        alert(`🗄️ DATABASE INFO:\n\n📊 Database: ${DB_NAME}\n📁 Daybook Records: ${daybookCount.result}\n👥 Customer Records: ${customerCount.result}\n💾 Storage: IndexedDB (Unlimited)\n✅ Status: Connected`);
+                    };
+                };
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        async function saveCustomersToDatabase() {
+            try {
+                const rows = document.querySelectorAll("#customer_table tr");
+                const customers = [];
+                rows.forEach((row, index) => {
+                    if (index > 0) {
+                        const inputs = row.querySelectorAll('.customer-cell');
+                        const checkbox = row.querySelector('input[type="checkbox"]');
+                        customers.push({ name: inputs[0].value, phone: inputs[1].value, notes: inputs[2].value, isVip: checkbox ? checkbox.checked : false, timestamp: new Date().toISOString() });
+                    }
+                });
+                const transaction = db.transaction(['customers'], 'readwrite');
+                const store = transaction.objectStore('customers');
+                await store.clear();
+                for (const customer of customers) await store.add(customer);
+                alert(`✅ Saved ${customers.length} customers!`);
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        async function loadCustomersFromDatabase() {
+            try {
+                const transaction = db.transaction(['customers'], 'readonly');
+                const request = transaction.objectStore('customers').getAll();
+                request.onsuccess = () => {
+                    const customers = request.result;
+                    if (customers.length === 0) { alert('No customers found!'); return; }
+                    const table = document.getElementById("customer_table");
+                    const rows = table.querySelectorAll("tr");
+                    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+                    customers.forEach(c => table.insertAdjacentHTML("beforeend", makeCustomerRow(c.name, c.phone, c.notes, c.isVip)));
+                    updateCustomerSN();
+                    updateCustomerStats();
+                    alert(`✅ Loaded ${customers.length} customers!`);
+                };
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            }
+        }
+
+        function clearDaybook() {
+            if (confirm("⚠️ Are you sure you want to CLEAR ALL entries?\n\nThis action cannot be undone unless you have saved data.")) {
+                document.querySelectorAll("#sheet input.cell").forEach(input => input.value = "");
+                calcTotals();
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initDatabase();
+                console.log('✅ Database initialized');
+
+                // Load Night Mode Preference
+                if (localStorage.getItem('nightMode') === 'true') {
+                    document.body.classList.add('night-mode');
+                    document.getElementById('mode-btn').innerText = '☀️';
+                }
+            } catch (error) {
+                console.error('❌ Database init failed:', error);
+            }
+        });
+
+        function toggleNightMode() {
+            document.body.classList.toggle('night-mode');
+            const isDark = document.body.classList.contains('night-mode');
+            localStorage.setItem('nightMode', isDark);
+            document.getElementById('mode-btn').innerText = isDark ? '☀️' : '🌙';
+        }
+
+        let today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const engDate = `${dd}/${mm}/${yyyy}`;
+
+        let nepDateStr = "";
+        try {
+            if (typeof NepaliDate !== 'undefined') {
+                const nepaliDate = new NepaliDate(today);
+                const nepMonths = ["Baisakh", "Jestha", "Ashad", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+                const nMonth = nepMonths[nepaliDate.getMonth()];
+                const nDay = nepaliDate.getDate();
+                const nYear = nepaliDate.getYear();
+                nepDateStr = `(BS: ${nMonth} ${nDay}, ${nYear})`;
+            }
+        } catch (e) {
+            console.error("Nepali Date Error:", e);
+        }
+
+        document.getElementById("date-bar").innerHTML = `DATE: ${engDate} &nbsp; ${nepDateStr} &nbsp;&nbsp;&nbsp; DAY: ${today.toLocaleDateString('en-US', { weekday: 'long' })}`;
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[onclick*="${tabId}"]`).classList.add('active');
+        }
+
+        const nepaliFormatter = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        function formatNepali(num) {
+            return nepaliFormatter.format(num || 0);
+        }
+
+        function parseInput(val) {
+            if (!val) return 0;
+            return Number(val.toString().replace(/,/g, '')) || 0;
+        }
+
+        function makeTable(sectionName, rows = 2, id) {
+            let html = `<div class="section-title">${sectionName}</div><button onclick="addRow('${id}')">+ Add Row</button><table id="${id}"><tr><th style="width: 40px;">S.N</th><th>AMOUNT</th><th>CASH</th><th>FONEPAY</th><th>CARD</th><th>BANK</th><th>BANK NAME</th><th>DUE</th><th>RET/EXC</th><th style="width: 200px;">NAME</th><th>PHONE NUMBER</th><th>DEL</th></tr>`;
+            for (let i = 0; i < rows; i++) html += makeRow();
+            html += `<tr class="total-row"><td>TOTAL</td><td class="t_amount">0.00</td><td class="t_cash">0.00</td><td class="t_fonepay">0.00</td><td class="t_card">0.00</td><td class="t_bank">0.00</td><td></td><td class="t_due">0.00</td><td colspan="4"></td></tr></table>`;
+            return html;
+        }
+
+        function makeRow() {
+            return `<tr><td><input class="cell"></td><td><input class="cell" oninput="updateRowDue(this)"></td><td><input class="cell" oninput="updateRowDue(this)"></td><td><input class="cell" oninput="updateRowDue(this)"></td><td><input class="cell" oninput="updateRowDue(this)"></td><td><input class="cell" oninput="updateRowDue(this)"></td><td><input class="cell"></td><td><input class="cell" readonly></td><td><input class="cell"></td><td><input class="cell"></td><td><input class="cell"></td><td><button onclick="deleteRow(this)">DEL</button></td></tr>`;
+        }
+
+        function addRow(id) {
+            let table = document.getElementById(id);
+            table.querySelector(".total-row").insertAdjacentHTML("beforebegin", makeRow());
+        }
+
+        function deleteRow(btn) {
+            let row = btn.closest("tr");
+            let table = row.closest("table");
+            if (table.querySelectorAll("tr").length - 2 > 2) { row.remove(); calcTotals(); }
+            else alert("Minimum 2 rows required.");
+        }
+
+        function updateRowDue(input) {
+            let row = input.closest("tr");
+            let cells = row.querySelectorAll("input.cell");
+            let amount = parseInput(cells[1].value);
+            let cash = parseInput(cells[2].value);
+            let fone = parseInput(cells[3].value);
+            let card = parseInput(cells[4].value);
+            let bank = parseInput(cells[5].value);
+            cells[7].value = formatNepali(amount - (cash + fone + card + bank));
+            calcTotals();
+        }
+
+        document.getElementById("sheet").innerHTML = makeTable("DIAMOND BILL", 2, "tbl_diamond") + makeTable("GOLD BILL", 2, "tbl_gold") + makeTable("BOOKING", 2, "tbl_booking") + makeTable("CASH RECEIPT", 2, "tbl_cash") + makeTable("APPROVAL", 2, "tbl_approval");
+        document.getElementById("tbl_approval").insertAdjacentHTML("beforeend", `<tr class="sum-total"><td>SUM TOTAL</td><td id="sum_amount">0.00</td><td id="sum_cash">0.00</td><td id="sum_fonepay">0.00</td><td id="sum_card">0.00</td><td id="sum_bank">0.00</td><td></td><td id="sum_due">0.00</td><td colspan="4"></td></tr>`);
+
+        function calcTotals() {
+            let sum_amount = 0, sum_cash = 0, sum_fone = 0, sum_card = 0, sum_bank = 0, sum_due = 0;
+            document.querySelectorAll("#sheet table").forEach(table => {
+                let t_amount = 0, t_cash = 0, t_fone = 0, t_card = 0, t_bank = 0, t_due = 0;
+                table.querySelectorAll("tr").forEach((row, index) => {
+                    if (index === 0 || row.classList.contains("total-row") || row.classList.contains("sum-total")) return;
+                    let c = row.querySelectorAll("input.cell");
+                    if (!c.length) return;
+                    let amt = parseInput(c[1].value);
+                    let cash = parseInput(c[2].value);
+                    let fone = parseInput(c[3].value);
+                    let card = parseInput(c[4].value);
+                    let bank = parseInput(c[5].value);
+                    let due = amt - (cash + fone + card + bank);
+
+                    // Only format the calculated Due column, don't touch inputs to avoid cursor jumping
+                    c[7].value = formatNepali(due);
+
+                    t_amount += amt; t_cash += cash; t_fone += fone; t_card += card; t_bank += bank; t_due += due;
+                });
+                if (table.querySelector(".t_amount")) {
+                    table.querySelector(".t_amount").innerText = formatNepali(t_amount);
+                    table.querySelector(".t_cash").innerText = formatNepali(t_cash);
+                    table.querySelector(".t_fonepay").innerText = formatNepali(t_fone);
+                    table.querySelector(".t_card").innerText = formatNepali(t_card);
+                    table.querySelector(".t_bank").innerText = formatNepali(t_bank);
+                    table.querySelector(".t_due").innerText = formatNepali(t_due);
+                }
+                sum_amount += t_amount; sum_cash += t_cash; sum_fone += t_fone; sum_card += t_card; sum_bank += t_bank; sum_due += t_due;
+            });
+            document.getElementById("sum_amount").innerText = formatNepali(sum_amount);
+            document.getElementById("sum_cash").innerText = formatNepali(sum_cash);
+            document.getElementById("sum_fonepay").innerText = formatNepali(sum_fone);
+            document.getElementById("sum_card").innerText = formatNepali(sum_card);
+            document.getElementById("sum_bank").innerText = formatNepali(sum_bank);
+            document.getElementById("sum_due").innerText = formatNepali(sum_due);
+        }
+
+        function makeCustomerRow(name = '', phone = '', notes = '', isVip = false) {
+            return `<tr><td style="text-align:center;"></td><td><input class="customer-cell" value="${name}" placeholder="Customer Name"></td><td><input class="customer-cell" value="${phone}" placeholder="Phone Number"></td><td><input class="customer-cell" value="${notes}" placeholder="Notes"></td><td style="text-align:center;"><label class="toggle-switch"><input type="checkbox" ${isVip ? 'checked' : ''} onchange="updateCustomerStats()"><span class="slider"></span></label><div style="margin-top:5px; font-size:10px;"><span class="${isVip ? 'vip-badge' : 'normal-badge'}">${isVip ? 'VIP' : 'NORMAL'}</span></div></td><td style="text-align:center;"><button onclick="deleteCustomerRow(this)">DEL</button></td></tr>`;
+        }
+
+        function addCustomerRow() {
+            document.getElementById("customer_table").insertAdjacentHTML("beforeend", makeCustomerRow());
+            updateCustomerSN();
+            updateCustomerStats();
+        }
+
+        function deleteCustomerRow(btn) {
+            if (confirm("Delete this customer?")) {
+                btn.closest("tr").remove();
+                updateCustomerSN();
+                updateCustomerStats();
+            }
+        }
+
+        function updateCustomerSN() {
+            let rows = document.querySelectorAll("#customer_table tr");
+            rows.forEach((row, index) => { if (index > 0) row.cells[0].innerText = index; });
+        }
+
+        function updateCustomerStats() {
+            let rows = document.querySelectorAll("#customer_table tr");
+            let total = rows.length - 1, vip = 0;
+            rows.forEach((row, index) => {
+                if (index > 0) {
+                    let checkbox = row.querySelector('input[type="checkbox"]');
+                    let badge = row.querySelector('.vip-badge, .normal-badge');
+                    if (checkbox && checkbox.checked) {
+                        vip++;
+                        if (badge) { badge.className = 'vip-badge'; badge.innerText = 'VIP'; }
+                    } else if (badge) { badge.className = 'normal-badge'; badge.innerText = 'NORMAL'; }
+                }
+            });
+            document.getElementById("total_customers").innerText = total;
+            document.getElementById("vip_customers").innerText = vip;
+            document.getElementById("normal_customers").innerText = total - vip;
+        }
+
+        function exportCustomersToExcel() {
+            const wb = XLSX.utils.book_new();
+            let customerData = [['CUSTOMER DATABASE'], [`Exported: ${new Date().toLocaleDateString()}`], [], ['S.N', 'NAME', 'PHONE NUMBER', 'NOTES', 'VIP STATUS']];
+            let rows = document.querySelectorAll("#customer_table tr");
+            rows.forEach((row, index) => {
+                if (index > 0) {
+                    let inputs = row.querySelectorAll('.customer-cell');
+                    let checkbox = row.querySelector('input[type="checkbox"]');
+                    customerData.push([index, inputs[0].value || '', inputs[1].value || '', inputs[2].value || '', checkbox && checkbox.checked ? 'VIP' : 'NORMAL']);
+                }
+            });
+            const ws = XLSX.utils.aoa_to_sheet(customerData);
+            ws['!cols'] = [{ wch: 8 }, { wch: 25 }, { wch: 18 }, { wch: 35 }, { wch: 12 }];
+            XLSX.utils.book_append_sheet(wb, ws, "Customers");
+            const filename = `Customers_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, filename);
+            alert(`✅ Exported ${rows.length - 1} customers!\n\nFile: ${filename}`);
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+            let excelData = [[`DAYBOOK - ${new Date().toLocaleDateString()}`], []];
+            const sections = [{ id: 'tbl_diamond', name: 'DIAMOND BILL' }, { id: 'tbl_gold', name: 'GOLD BILL' }, { id: 'tbl_booking', name: 'BOOKING' }, { id: 'tbl_cash', name: 'CASH RECEIPT' }, { id: 'tbl_approval', name: 'APPROVAL' }];
+            sections.forEach(section => {
+                excelData.push([section.name]);
+                excelData.push(['S.N', 'AMOUNT', 'CASH', 'FONEPAY', 'CARD', 'BANK', 'BANK NAME', 'DUE', 'RET/EXC', 'NAME', 'PHONE NUMBER']);
+                const table = document.getElementById(section.id);
+                table.querySelectorAll('tr').forEach((row, index) => {
+                    if (index === 0) return;
+                    if (row.classList.contains('total-row')) {
+                        const cells = row.querySelectorAll('td');
+                        excelData.push(['TOTAL', cells[1].innerText, cells[2].innerText, cells[3].innerText, cells[4].innerText, cells[5].innerText, '', cells[7].innerText, '', '', '']);
+                        return;
+                    }
+                    if (row.classList.contains('sum-total')) {
+                        const cells = row.querySelectorAll('td');
+                        excelData.push(['SUM TOTAL', cells[1].innerText, cells[2].innerText, cells[3].innerText, cells[4].innerText, cells[5].innerText, '', cells[7].innerText, '', '', '']);
+                        return;
+                    }
+                    const inputs = row.querySelectorAll('input.cell');
+                    if (inputs.length > 0) excelData.push([inputs[0].value || '', inputs[1].value || '', inputs[2].value || '', inputs[3].value || '', inputs[4].value || '', inputs[5].value || '', inputs[6].value || '', inputs[7].value || '', inputs[8].value || '', inputs[9].value || '', inputs[10].value || '']);
+                });
+                excelData.push([]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, ws, "Daybook");
+            const filename = `Daybook_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, filename);
+            alert(`✅ Excel exported!\n\nFile: ${filename}`);
+        }
+
+        function printAsPDF() {
+            let originalTitle = document.title;
+            document.title = "Daybook_" + new Date().toISOString().split('T')[0];
+            window.print();
+            document.title = originalTitle;
+        }
+
+        function addCalcRow() {
+            let table = document.getElementById("calc_table");
+            let tr = document.createElement("tr");
+            tr.innerHTML = `<td style="text-align:center;"></td><td><input class="calc-input" style="width:100%; border:none; padding:5px;"></td><td><input class="calc-input amount" type="text" oninput="updateCalcTotal()" style="width:100%; border:none; text-align:right; padding:5px;" placeholder="0.00"></td><td style="text-align:center;"><button onclick="removeCalcRow(this)" style="background:red; color:white; border:none; cursor:pointer;">X</button></td>`;
+            table.appendChild(tr);
+            updateCalcSN();
+        }
+
+        function removeCalcRow(btn) { btn.closest("tr").remove(); updateCalcSN(); updateCalcTotal(); }
+        function updateCalcSN() { let rows = document.querySelectorAll("#calc_table tr"); rows.forEach((row, index) => { if (index > 0) row.cells[0].innerText = index; }); }
+
+        function updateCalcTotal() {
+            let total = 0;
+            document.querySelectorAll(".calc-input.amount").forEach(input => {
+                total += parseInput(input.value);
+            });
+            document.getElementById("calc_total").innerText = formatNepali(total);
+        }
+
+        function clearCalc() {
+            if (confirm("Clear calculator?")) {
+                document.querySelectorAll("#calc_table tr").forEach((row, index) => {
+                    if (index > 0) row.remove();
+                });
+                addCalcRow();
+                updateCalcTotal();
+            }
+        }
+
+        for (let i = 0; i < 5; i++) addCalcRow();
+        updateCustomerStats();
+    </script>
+</body>
+
+</html>
